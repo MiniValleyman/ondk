@@ -13,14 +13,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-
       - name: Install dependencies
         run: |
-          # Update package index
-          sudo apt-get update
+        # Update package index
+        sudo apt-get update
 
-          # Install Java + tools required for Android SDK
-          sudo apt-get install -y openjdk-17-jdk wget unzip
+         # Install Java 17 (required for Android SDK tools class 61)
+         sudo apt-get install -y openjdk-17-jdk wget unzip
 
       - name: Setup Android SDK + NDK
         run: |
