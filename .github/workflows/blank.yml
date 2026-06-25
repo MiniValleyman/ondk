@@ -1,11 +1,11 @@
-name: ondk android build
+name: ondk android ndk-only build
 
 on:
   workflow_dispatch:
 
 jobs:
   android-arm64-api34:
-    name: Build Android 14 (API 34 arm64-v8a)
+    name: Build Android 14 (arm64-v8a) NDK-only
     runs-on: ubuntu-22.04
 
     steps:
@@ -14,73 +14,48 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           # Update package index
           sudo apt-get update
 
-          # Install Java 17 (required for Android SDK tools class 61)
-          sudo apt-get install -y openjdk-17-jdk wget unzip
+          # Install minimal required tools (no Android SDK)
+          sudo apt-get install -y wget unzip cmake ninja-build
 
-      - name: Verify Java version
+      - name: Download Android NDK (standalone)
         run: |
-          # Print Java version to ensure SDK compatibility
-          java -version
+          # Create workspace directory for NDK
+          mkdir -p $HOME/android-ndk
 
-      - name: Setup Android SDK + NDK
+          # Move into workspace
+          cd $HOME/android-ndk
+
+          # Download Android NDK r26 LTS (stable for API 34)
+          wget https://dl.google.com/android/repository/android-ndk-r26d-linux.zip
+
+          # Extract NDK
+          unzip android-ndk-r26d-linux.zip
+
+      - name: Set environment
         run: |
-          # Create Android SDK directory
-          mkdir -p $HOME/android-sdk
+          # Define NDK root path
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk/android-ndk-r26d" >> $GITHUB_ENV
 
-          # Move into SDK directory
-          cd $HOME/android-sdk
+          # Define ABI target
+          echo "ANDROID_ABI=arm64-v8a" >> $GITHUB_ENV
 
-          # Download Android command line tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          # Define API level (Android 14)
+          echo "ANDROID_PLATFORM=android-34" >> $GITHUB_ENV
 
-          # Extract command line tools
-          unzip commandlinetools-linux-*.zip
-
-          # Fix expected directory structure
-          mkdir -p cmdline-tools/latest
-
-          # Move extracted tools into correct location
-          mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-
-          # Install platform tools, API 34, build tools and NDK
-          yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "ndk;26.3.11579264"
-
-      - name: Configure environment
+      - name: Configure CMake (Android toolchain)
         run: |
-          # Export Android SDK root
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          # Create build directory
+          mkdir -p build
+          cd build
 
-          # Add SDK tools to PATH
-          echo "PATH=$PATH:$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_ENV
-
-      - name: Build Android (arm64-v8a, API 34)
-        run: |
-          # Set Android environment variables
-          export ANDROID_HOME=$HOME/android-sdk
-
-          # Set Android NDK path
-          export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/26.3.11579264
-
-          # Target architecture
-          export ANDROID_ABI=arm64-v8a
-
-          # Target API level (Android 14)
-          export ANDROID_API=34
-
-          # Run project build script (must support Android NDK build)
-          ./build.sh android
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v7
-        with:
-          path: dist/*.apk
-          archive: false
+          # Configure CMake for Android using NDK toolchain file
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM
