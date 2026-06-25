@@ -13,17 +13,23 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
+
       - name: Install dependencies
         run: |
-        # Update package index
-        sudo apt-get update
+          # Update package index
+          sudo apt-get update
 
-         # Install Java 17 (required for Android SDK tools class 61)
-         sudo apt-get install -y openjdk-17-jdk wget unzip
+          # Install Java 17 (required for Android SDK tools class 61)
+          sudo apt-get install -y openjdk-17-jdk wget unzip
+
+      - name: Verify Java version
+        run: |
+          # Print Java version to ensure SDK compatibility
+          java -version
 
       - name: Setup Android SDK + NDK
         run: |
-          # Create directory for Android SDK
+          # Create Android SDK directory
           mkdir -p $HOME/android-sdk
 
           # Move into SDK directory
@@ -32,32 +38,36 @@ jobs:
           # Download Android command line tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
 
-          # Unzip SDK tools
+          # Extract command line tools
           unzip commandlinetools-linux-*.zip
 
-          # Move tools into expected structure
+          # Fix expected directory structure
           mkdir -p cmdline-tools/latest
+
+          # Move extracted tools into correct location
           mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
 
-          # Install required Android components (API 34 + NDK)
+          # Install platform tools, API 34, build tools and NDK
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$HOME/android-sdk \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0" \
             "ndk;26.3.11579264"
 
-      - name: Set environment variables
+      - name: Configure environment
         run: |
-          # Define Android SDK root
+          # Export Android SDK root
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
 
-          # Extend PATH with SDK tools
+          # Add SDK tools to PATH
           echo "PATH=$PATH:$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_ENV
 
-      - name: Build Android arm64-v8a
+      - name: Build Android (arm64-v8a, API 34)
         run: |
-          # Set Android build environment
+          # Set Android environment variables
           export ANDROID_HOME=$HOME/android-sdk
+
+          # Set Android NDK path
           export ANDROID_NDK_HOME=$HOME/android-sdk/ndk/26.3.11579264
 
           # Target architecture
@@ -66,7 +76,7 @@ jobs:
           # Target API level (Android 14)
           export ANDROID_API=34
 
-          # Run project build script (must support Android build mode)
+          # Run project build script (must support Android NDK build)
           ./build.sh android
 
       - name: Upload APK artifact
